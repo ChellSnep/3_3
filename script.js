@@ -1,5 +1,10 @@
 const API_KEY = 'gmXECTBVfLRBqZ28B6HkLBSYeElEvSiz'.trim();
 const BASE_URL = 'https://api.giphy.com/v1/gifs';
+const LIMIT = 20;
+
+let currentQuery = '';
+let currentPage = 1;
+let totalPages = 1;
 
 const searchForm = document.getElementById('search-form');
 const searchInput = document.getElementById('search-input');
@@ -7,12 +12,34 @@ const randomBtn = document.getElementById('random-btn');
 const gifContainer = document.getElementById('gif-container');
 const statusMsg = document.getElementById('status-msg');
 
+const paginationContainer = document.getElementById('pagination');
+const prevBtn = document.getElementById('prev-btn');
+const nextBtn = document.getElementById('next-btn');
+const pageInfo = document.getElementById('page-info');
+
+async function fetchWithTimeout(url, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+    return response;
+  } catch (error) {
+    clearTimeout(timer);
+    throw error;
+  }
+}
+
 function renderGifs(gifs, isSingle = false) {
   gifContainer.innerHTML = '';
 
   gifs.forEach((gif) => {
+    const imgUrl = gif?.images?.fixed_height?.url || gif?.images?.original?.url;
+    if (!imgUrl) return;
+
     const img = document.createElement('img');
-    img.src = gif.images.fixed_height.url || gif.images.original.url;
+    img.src = imgUrl;
     img.alt = gif.title || 'Obrazek GIF';
     if (isSingle) {
       img.classList.add('single-gif');
@@ -21,50 +48,74 @@ function renderGifs(gifs, isSingle = false) {
   });
 }
 
-async function searchGifs(query) {
-  statusMsg.textContent = 'Wyszukiwanie...';
-  gifContainer.innerHTML = '';
+function updatePaginationUI(totalCount) {
+  const maxAccessibleItems = Math.min(totalCount, 4999);
+  totalPages = Math.max(1, Math.ceil(maxAccessibleItems / LIMIT));
 
-  const url = `${BASE_URL}/search?api_key=${API_KEY}&q=${encodeURIComponent(query)}&limit=20`;
+  pageInfo.textContent = `Strona ${currentPage} z ${totalPages}`;
+  prevBtn.disabled = currentPage <= 1;
+  nextBtn.disabled = currentPage >= totalPages;
+  paginationContainer.hidden = totalCount <= LIMIT;
+}
 
+async function searchGifs(query, page = 1) {
   try {
-    const response = await fetch(url);
+    statusMsg.textContent = 'Wyszukiwanie...';
+    gifContainer.innerHTML = '';
+
+    const offset = (page - 1) * LIMIT;
+    const url = `${BASE_URL}/search?api_key=${API_KEY}&q=${encodeURIComponent(query)}&limit=${LIMIT}&offset=${offset}&rating=g`;
+
+    const response = await fetchWithTimeout(url);
+
     if (!response.ok) {
-      throw new Error(`Błąd HTTP: ${response.status}`);
+      throw new Error(`Serwer zwrócił kod ${response.status}`);
     }
 
     const result = await response.json();
 
-    if (result.data.length === 0) {
+    if (!result.data || result.data.length === 0) {
       statusMsg.textContent = `Brak wyników dla frazy "${query}".`;
+      paginationContainer.hidden = true;
       return;
     }
 
     statusMsg.textContent = '';
     renderGifs(result.data, false);
+    updatePaginationUI(result.pagination.total_count);
   } catch (error) {
-    statusMsg.textContent = 'Wystąpił błąd podczas wyszukiwania GIF-ów.';
+    paginationContainer.hidden = true;
+    if (error.name === 'AbortError') {
+      statusMsg.textContent = 'Przekroczono czas oczekiwania na odpowiedź serwera.';
+    } else {
+      statusMsg.textContent = `Błąd: ${error.message}`;
+    }
     console.error('Szczegóły błędu:', error);
   }
 }
 
 async function getRandomGif() {
-  statusMsg.textContent = 'Losowanie...';
-  gifContainer.innerHTML = '';
-
-  const url = `${BASE_URL}/random?api_key=${API_KEY}&rating=g`;
-
   try {
-    const response = await fetch(url);
+    statusMsg.textContent = 'Losowanie...';
+    gifContainer.innerHTML = '';
+    paginationContainer.hidden = true;
+
+    const url = `${BASE_URL}/random?api_key=${API_KEY}&rating=g`;
+    const response = await fetchWithTimeout(url);
+
     if (!response.ok) {
-      throw new Error(`Błąd HTTP: ${response.status}`);
+      throw new Error(`Serwer zwrócił kod ${response.status}`);
     }
 
     const result = await response.json();
     statusMsg.textContent = '';
     renderGifs([result.data], true);
   } catch (error) {
-    statusMsg.textContent = 'Nie udało się wylosować pliku GIF.';
+    if (error.name === 'AbortError') {
+      statusMsg.textContent = 'Przekroczono czas oczekiwania na odpowiedź serwera.';
+    } else {
+      statusMsg.textContent = `Błąd: ${error.message}`;
+    }
     console.error('Szczegóły błędu:', error);
   }
 }
@@ -73,7 +124,25 @@ searchForm.addEventListener('submit', (event) => {
   event.preventDefault();
   const query = searchInput.value.trim();
   if (query) {
-    searchGifs(query);
+    currentQuery = query;
+    currentPage = 1;
+    searchGifs(currentQuery, currentPage);
+  }
+});
+
+prevBtn.addEventListener('click', () => {
+  if (currentPage > 1) {
+    currentPage--;
+    searchGifs(currentQuery, currentPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+});
+
+nextBtn.addEventListener('click', () => {
+  if (currentPage < totalPages) {
+    currentPage++;
+    searchGifs(currentQuery, currentPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 });
 
