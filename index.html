@@ -7,12 +7,16 @@
 
   </head>
   <body>
-    <h1>Losowy GIF z GIPHY</h1>
-    <button id="fetch-btn" type="button">Wylosuj nowy GIF</button>
-    <p id="status-msg"></p>
-    <div id="gif-container">
-      <img id="gif-image" alt="Losowy GIF" hidden>
+    <div class="controls">
+      <form id="search-form">
+        <input type="text" id="search-input" required >
+        <button type="submit">Szukaj</button>
+      </form>
+      <button id="random-btn" type="button" class="secondary-btn">Wylosuj GIF</button>
     </div>
+
+    <p id="status-msg"></p>
+    <div id="gif-container" class="gif-grid"></div>
 
     <script src="script.js"></script>
   </body>
