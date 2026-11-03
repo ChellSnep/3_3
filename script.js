@@ -1,4 +1,4 @@
-const API_KEY = 'gmXECTBVfLRBqZ28B6HkLBSYeElEvSiz'.trim();
+const API_KEY = 'KLUCZ_API_WLASNY'.trim();
 const BASE_URL = 'https://api.giphy.com/v1/gifs';
 const LIMIT = 20;
 
